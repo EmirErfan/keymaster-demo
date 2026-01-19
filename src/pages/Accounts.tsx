@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useApp, StaffAccount } from '@/contexts/AppContext';
+import { useApp, UserAccount, UserRole } from '@/contexts/AppContext';
 import { DashboardLayout } from '@/components/layouts/DashboardLayout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -32,26 +32,28 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Plus, Pencil, Trash2, CheckCircle } from 'lucide-react';
+import { Plus, Pencil, Trash2, CheckCircle, Shield, User } from 'lucide-react';
 import { toast } from 'sonner';
 
 export default function Accounts() {
-  const { staffAccounts, addStaffAccount, updateStaffAccount, deleteStaffAccount } = useApp();
+  const { userAccounts, addUserAccount, updateUserAccount, deleteUserAccount } = useApp();
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
-  const [editingStaff, setEditingStaff] = useState<StaffAccount | null>(null);
+  const [editingAccount, setEditingAccount] = useState<UserAccount | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const [formData, setFormData] = useState({
+    username: '',
+    password: '',
     name: '',
     email: '',
     phone: '',
-    role: '',
+    role: '' as UserRole | '',
   });
 
   const resetForm = () => {
-    setFormData({ name: '', email: '', phone: '', role: '' });
-    setEditingStaff(null);
+    setFormData({ username: '', password: '', name: '', email: '', phone: '', role: '' });
+    setEditingAccount(null);
   };
 
   const openCreateForm = () => {
@@ -59,13 +61,15 @@ export default function Accounts() {
     setIsFormOpen(true);
   };
 
-  const openEditForm = (staff: StaffAccount) => {
-    setEditingStaff(staff);
+  const openEditForm = (account: UserAccount) => {
+    setEditingAccount(account);
     setFormData({
-      name: staff.name,
-      email: staff.email,
-      phone: staff.phone,
-      role: staff.role,
+      username: account.username,
+      password: account.password,
+      name: account.name,
+      email: account.email,
+      phone: account.phone,
+      role: account.role,
     });
     setIsFormOpen(true);
   };
@@ -73,17 +77,26 @@ export default function Accounts() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!formData.name || !formData.email || !formData.phone || !formData.role) {
+    if (!formData.username || !formData.password || !formData.name || !formData.email || !formData.phone || !formData.role) {
       toast.error('Please fill in all fields');
       return;
     }
 
-    if (editingStaff) {
-      updateStaffAccount(editingStaff.id, formData);
-      toast.success('Staff account updated successfully');
+    // Check for duplicate username (excluding current account when editing)
+    const isDuplicate = userAccounts.some(
+      a => a.username === formData.username && a.id !== editingAccount?.id
+    );
+    if (isDuplicate) {
+      toast.error('Username already exists');
+      return;
+    }
+
+    if (editingAccount) {
+      updateUserAccount(editingAccount.id, formData as Omit<UserAccount, 'id'>);
+      toast.success('Account updated successfully');
     } else {
-      addStaffAccount(formData);
-      toast.success('Staff account created successfully');
+      addUserAccount(formData as Omit<UserAccount, 'id'>);
+      toast.success('Account created successfully');
     }
 
     setIsFormOpen(false);
@@ -92,8 +105,15 @@ export default function Accounts() {
 
   const handleDelete = () => {
     if (deletingId) {
-      deleteStaffAccount(deletingId);
-      toast.success('Staff account deleted successfully');
+      // Prevent deleting the default supervisor
+      if (deletingId === 'sv-default') {
+        toast.error('Cannot delete the default supervisor account');
+        setIsDeleteOpen(false);
+        setDeletingId(null);
+        return;
+      }
+      deleteUserAccount(deletingId);
+      toast.success('Account deleted successfully');
       setIsDeleteOpen(false);
       setDeletingId(null);
     }
@@ -110,28 +130,29 @@ export default function Accounts() {
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-3xl font-bold text-foreground">Manage Accounts</h1>
-            <p className="mt-1 text-muted-foreground">Create, view, and manage staff accounts</p>
+            <p className="mt-1 text-muted-foreground">Create supervisor and staff accounts</p>
           </div>
           <Button onClick={openCreateForm}>
             <Plus className="mr-2 h-4 w-4" />
-            Add Staff
+            Add Account
           </Button>
         </div>
 
         <Card>
           <CardHeader>
-            <CardTitle>Staff Accounts</CardTitle>
+            <CardTitle>User Accounts</CardTitle>
           </CardHeader>
           <CardContent>
-            {staffAccounts.length === 0 ? (
+            {userAccounts.length === 0 ? (
               <div className="py-8 text-center text-muted-foreground">
-                No staff accounts yet. Click "Add Staff" to create one.
+                No accounts yet. Click "Add Account" to create one.
               </div>
             ) : (
               <Table>
                 <TableHeader>
                   <TableRow>
                     <TableHead>Name</TableHead>
+                    <TableHead>Username</TableHead>
                     <TableHead>Email</TableHead>
                     <TableHead>Phone</TableHead>
                     <TableHead>Role</TableHead>
@@ -139,25 +160,40 @@ export default function Accounts() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {staffAccounts.map((staff) => (
-                    <TableRow key={staff.id}>
-                      <TableCell className="font-medium">{staff.name}</TableCell>
-                      <TableCell>{staff.email}</TableCell>
-                      <TableCell>{staff.phone}</TableCell>
-                      <TableCell>{staff.role}</TableCell>
+                  {userAccounts.map((account) => (
+                    <TableRow key={account.id}>
+                      <TableCell className="font-medium">{account.name}</TableCell>
+                      <TableCell>{account.username}</TableCell>
+                      <TableCell>{account.email}</TableCell>
+                      <TableCell>{account.phone}</TableCell>
+                      <TableCell>
+                        <span className={`inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-medium ${
+                          account.role === 'supervisor' 
+                            ? 'bg-primary/10 text-primary' 
+                            : 'bg-muted text-muted-foreground'
+                        }`}>
+                          {account.role === 'supervisor' ? (
+                            <Shield className="h-3 w-3" />
+                          ) : (
+                            <User className="h-3 w-3" />
+                          )}
+                          {account.role === 'supervisor' ? 'Supervisor' : 'Staff'}
+                        </span>
+                      </TableCell>
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-2">
                           <Button
                             variant="ghost"
                             size="icon"
-                            onClick={() => openEditForm(staff)}
+                            onClick={() => openEditForm(account)}
                           >
                             <Pencil className="h-4 w-4" />
                           </Button>
                           <Button
                             variant="ghost"
                             size="icon"
-                            onClick={() => openDeleteDialog(staff.id)}
+                            onClick={() => openDeleteDialog(account.id)}
+                            disabled={account.id === 'sv-default'}
                           >
                             <Trash2 className="h-4 w-4 text-destructive" />
                           </Button>
@@ -177,24 +213,45 @@ export default function Accounts() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>
-              {editingStaff ? 'Edit Staff Account' : 'Create Staff Account'}
+              {editingAccount ? 'Edit Account' : 'Create Account'}
             </DialogTitle>
             <DialogDescription>
-              {editingStaff
-                ? 'Update the staff account information below.'
-                : 'Fill in the details to create a new staff account.'}
+              {editingAccount
+                ? 'Update the account information below.'
+                : 'Fill in the details to create a new account.'}
             </DialogDescription>
           </DialogHeader>
           <form onSubmit={handleSubmit}>
             <div className="space-y-4 py-4">
               <div className="space-y-2">
-                <Label htmlFor="name">Name</Label>
+                <Label htmlFor="name">Full Name</Label>
                 <Input
                   id="name"
                   value={formData.name}
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                   placeholder="Enter full name"
                 />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="username">Username</Label>
+                  <Input
+                    id="username"
+                    value={formData.username}
+                    onChange={(e) => setFormData({ ...formData, username: e.target.value })}
+                    placeholder="Login username"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="password">Password</Label>
+                  <Input
+                    id="password"
+                    type="password"
+                    value={formData.password}
+                    onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                    placeholder="Login password"
+                  />
+                </div>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="email">Email</Label>
@@ -219,15 +276,14 @@ export default function Accounts() {
                 <Label htmlFor="role">Role</Label>
                 <Select
                   value={formData.role}
-                  onValueChange={(value) => setFormData({ ...formData, role: value })}
+                  onValueChange={(value) => setFormData({ ...formData, role: value as UserRole })}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Select role" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="Staff">Staff</SelectItem>
-                    <SelectItem value="Senior Staff">Senior Staff</SelectItem>
-                    <SelectItem value="Team Lead">Team Lead</SelectItem>
+                    <SelectItem value="supervisor">Supervisor</SelectItem>
+                    <SelectItem value="staff">Staff</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -238,7 +294,7 @@ export default function Accounts() {
               </Button>
               <Button type="submit">
                 <CheckCircle className="mr-2 h-4 w-4" />
-                {editingStaff ? 'Update' : 'Create'}
+                {editingAccount ? 'Update' : 'Create'}
               </Button>
             </DialogFooter>
           </form>
@@ -249,9 +305,10 @@ export default function Accounts() {
       <AlertDialog open={isDeleteOpen} onOpenChange={setIsDeleteOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete Staff Account</AlertDialogTitle>
+            <AlertDialogTitle>Delete Account</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to delete this staff account? This action cannot be undone.
+              Are you sure you want to delete this account? This action cannot be undone.
+              Any keys assigned to this user will be unassigned.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

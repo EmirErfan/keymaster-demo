@@ -32,17 +32,21 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Plus, Pencil, Trash2, CheckCircle } from 'lucide-react';
+import { Plus, Pencil, Trash2, CheckCircle, UserPlus, UserMinus } from 'lucide-react';
 import { toast } from 'sonner';
 
 export default function Keys() {
-  const { user, keys, addKey, updateKey, deleteKey } = useApp();
+  const { user, keys, addKey, updateKey, deleteKey, assignKey, unassignKey, getStaffAccounts } = useApp();
   const isSupervisor = user?.role === 'supervisor';
+  const staffAccounts = getStaffAccounts();
 
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
+  const [isAssignOpen, setIsAssignOpen] = useState(false);
   const [editingKey, setEditingKey] = useState<Key | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [assigningKey, setAssigningKey] = useState<Key | null>(null);
+  const [selectedStaffId, setSelectedStaffId] = useState<string>('');
 
   const [formData, setFormData] = useState({
     keyNumber: '',
@@ -72,6 +76,12 @@ export default function Keys() {
     setIsFormOpen(true);
   };
 
+  const openAssignDialog = (key: Key) => {
+    setAssigningKey(key);
+    setSelectedStaffId(key.assignedTo || '');
+    setIsAssignOpen(true);
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -81,15 +91,34 @@ export default function Keys() {
     }
 
     if (editingKey) {
-      updateKey(editingKey.id, formData);
+      updateKey(editingKey.id, {
+        ...formData,
+        assignedTo: editingKey.assignedTo,
+        assignedToName: editingKey.assignedToName,
+      });
       toast.success('Key updated successfully');
     } else {
-      addKey(formData);
+      addKey({ ...formData, status: 'Available' });
       toast.success('Key created successfully');
     }
 
     setIsFormOpen(false);
     resetForm();
+  };
+
+  const handleAssign = () => {
+    if (assigningKey && selectedStaffId) {
+      assignKey(assigningKey.id, selectedStaffId);
+      toast.success('Key assigned successfully');
+      setIsAssignOpen(false);
+      setAssigningKey(null);
+      setSelectedStaffId('');
+    }
+  };
+
+  const handleUnassign = (keyId: string) => {
+    unassignKey(keyId);
+    toast.success('Key unassigned successfully');
   };
 
   const handleDelete = () => {
@@ -106,18 +135,23 @@ export default function Keys() {
     setIsDeleteOpen(true);
   };
 
+  // Filter keys for staff - they only see keys assigned to them
+  const visibleKeys = isSupervisor 
+    ? keys 
+    : keys.filter(k => k.assignedTo === user?.id);
+
   return (
     <DashboardLayout>
       <div className="space-y-6">
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-3xl font-bold text-foreground">
-              {isSupervisor ? 'Manage Keys' : 'View Keys'}
+              {isSupervisor ? 'Manage Keys' : 'My Keys'}
             </h1>
             <p className="mt-1 text-muted-foreground">
               {isSupervisor
-                ? 'Create, view, and manage keys'
-                : 'View all available and assigned keys'}
+                ? 'Create, assign, and manage keys'
+                : 'View keys assigned to you'}
             </p>
           </div>
           {isSupervisor && (
@@ -133,10 +167,11 @@ export default function Keys() {
             <CardTitle>Keys Registry</CardTitle>
           </CardHeader>
           <CardContent>
-            {keys.length === 0 ? (
+            {visibleKeys.length === 0 ? (
               <div className="py-8 text-center text-muted-foreground">
-                No keys registered yet.
-                {isSupervisor && ' Click "Add Key" to create one.'}
+                {isSupervisor 
+                  ? 'No keys registered yet. Click "Add Key" to create one.'
+                  : 'No keys assigned to you yet.'}
               </div>
             ) : (
               <Table>
@@ -146,11 +181,12 @@ export default function Keys() {
                     <TableHead>Description</TableHead>
                     <TableHead>Due Date</TableHead>
                     <TableHead>Status</TableHead>
+                    <TableHead>Assigned To</TableHead>
                     {isSupervisor && <TableHead className="text-right">Actions</TableHead>}
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {keys.map((key) => (
+                  {visibleKeys.map((key) => (
                     <TableRow key={key.id}>
                       <TableCell className="font-medium">{key.keyNumber}</TableCell>
                       <TableCell>{key.description}</TableCell>
@@ -166,9 +202,33 @@ export default function Keys() {
                           {key.status}
                         </span>
                       </TableCell>
+                      <TableCell>
+                        {key.assignedToName || (
+                          <span className="text-muted-foreground">—</span>
+                        )}
+                      </TableCell>
                       {isSupervisor && (
                         <TableCell className="text-right">
                           <div className="flex justify-end gap-2">
+                            {key.status === 'Available' ? (
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => openAssignDialog(key)}
+                                title="Assign to staff"
+                              >
+                                <UserPlus className="h-4 w-4 text-primary" />
+                              </Button>
+                            ) : (
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => handleUnassign(key.id)}
+                                title="Unassign key"
+                              >
+                                <UserMinus className="h-4 w-4 text-warning" />
+                              </Button>
+                            )}
                             <Button
                               variant="ghost"
                               size="icon"
@@ -235,25 +295,6 @@ export default function Keys() {
                   onChange={(e) => setFormData({ ...formData, dueDate: e.target.value })}
                 />
               </div>
-              {editingKey && (
-                <div className="space-y-2">
-                  <Label htmlFor="status">Status</Label>
-                  <Select
-                    value={formData.status}
-                    onValueChange={(value) =>
-                      setFormData({ ...formData, status: value as 'Available' | 'Assigned' })
-                    }
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select status" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="Available">Available</SelectItem>
-                      <SelectItem value="Assigned">Assigned</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              )}
             </div>
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setIsFormOpen(false)}>
@@ -265,6 +306,46 @@ export default function Keys() {
               </Button>
             </DialogFooter>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Assign Key Dialog */}
+      <Dialog open={isAssignOpen} onOpenChange={setIsAssignOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Assign Key</DialogTitle>
+            <DialogDescription>
+              Select a staff member to assign key "{assigningKey?.keyNumber}" to.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4">
+            <Label htmlFor="staffSelect">Staff Member</Label>
+            <Select value={selectedStaffId} onValueChange={setSelectedStaffId}>
+              <SelectTrigger className="mt-2">
+                <SelectValue placeholder="Select staff member" />
+              </SelectTrigger>
+              <SelectContent>
+                {staffAccounts.length === 0 ? (
+                  <SelectItem value="" disabled>No staff accounts available</SelectItem>
+                ) : (
+                  staffAccounts.map((staff) => (
+                    <SelectItem key={staff.id} value={staff.id}>
+                      {staff.name}
+                    </SelectItem>
+                  ))
+                )}
+              </SelectContent>
+            </Select>
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setIsAssignOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleAssign} disabled={!selectedStaffId}>
+              <UserPlus className="mr-2 h-4 w-4" />
+              Assign
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 

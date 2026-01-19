@@ -9,17 +9,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { KeyRound, AlertCircle } from 'lucide-react';
 
-const DEMO_ACCOUNTS = {
-  supervisor: { username: 'supervisor', password: '123456', role: 'supervisor' as UserRole },
-  staff: { username: 'staff', password: '123456', role: 'staff' as UserRole },
-};
-
 export default function Login() {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [role, setRole] = useState<UserRole | ''>('');
   const [error, setError] = useState('');
-  const { setUser } = useApp();
+  const { setUser, validateLogin } = useApp();
   const navigate = useNavigate();
 
   const handleLogin = (e: React.FormEvent) => {
@@ -31,9 +26,14 @@ export default function Login() {
       return;
     }
 
-    const account = DEMO_ACCOUNTS[role];
-    if (account && account.username === username && account.password === password) {
-      setUser({ id: role, username, role });
+    const account = validateLogin(username, password, role);
+    if (account) {
+      setUser({ 
+        id: account.id, 
+        username: account.username, 
+        name: account.name,
+        role: account.role 
+      });
       navigate('/dashboard');
     } else {
       setError('Invalid credentials. Please check username, password, and role.');
@@ -109,7 +109,7 @@ export default function Login() {
               <p className="mb-2 text-sm font-medium text-foreground">Demo Accounts:</p>
               <div className="space-y-1 text-sm text-muted-foreground">
                 <p><strong>Supervisor:</strong> supervisor / 123456</p>
-                <p><strong>Staff:</strong> staff / 123456</p>
+                <p><strong>Staff:</strong> john / 123456 or jane / 123456</p>
               </div>
             </div>
           </CardContent>

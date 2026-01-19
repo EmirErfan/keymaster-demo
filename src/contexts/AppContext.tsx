@@ -5,15 +5,18 @@ export type UserRole = 'supervisor' | 'staff';
 export interface User {
   id: string;
   username: string;
+  name: string;
   role: UserRole;
 }
 
-export interface StaffAccount {
+export interface UserAccount {
   id: string;
+  username: string;
+  password: string;
   name: string;
   email: string;
   phone: string;
-  role: string;
+  role: UserRole;
 }
 
 export interface Key {
@@ -22,6 +25,8 @@ export interface Key {
   description: string;
   dueDate: string;
   status: 'Available' | 'Assigned';
+  assignedTo?: string; // User ID of assigned staff
+  assignedToName?: string; // Name of assigned staff for display
 }
 
 export interface Task {
@@ -34,33 +39,62 @@ export interface Task {
 interface AppContextType {
   user: User | null;
   setUser: (user: User | null) => void;
-  staffAccounts: StaffAccount[];
-  addStaffAccount: (staff: Omit<StaffAccount, 'id'>) => void;
-  updateStaffAccount: (id: string, staff: Omit<StaffAccount, 'id'>) => void;
-  deleteStaffAccount: (id: string) => void;
+  userAccounts: UserAccount[];
+  addUserAccount: (account: Omit<UserAccount, 'id'>) => void;
+  updateUserAccount: (id: string, account: Omit<UserAccount, 'id'>) => void;
+  deleteUserAccount: (id: string) => void;
+  validateLogin: (username: string, password: string, role: UserRole) => UserAccount | null;
   keys: Key[];
   addKey: (key: Omit<Key, 'id'>) => void;
   updateKey: (id: string, key: Omit<Key, 'id'>) => void;
   deleteKey: (id: string) => void;
+  assignKey: (keyId: string, userId: string) => void;
+  unassignKey: (keyId: string) => void;
   tasks: Task[];
   addTask: (task: Omit<Task, 'id'>) => void;
   deleteTask: (id: string) => void;
   logout: () => void;
+  getStaffAccounts: () => UserAccount[];
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
 const generateId = () => Math.random().toString(36).substr(2, 9);
 
-// Initial demo data
-const initialStaff: StaffAccount[] = [
-  { id: '1', name: 'John Smith', email: 'john@example.com', phone: '555-0101', role: 'Staff' },
-  { id: '2', name: 'Jane Doe', email: 'jane@example.com', phone: '555-0102', role: 'Staff' },
+// Initial demo data - includes default supervisor
+const initialAccounts: UserAccount[] = [
+  { 
+    id: 'sv-default', 
+    username: 'supervisor', 
+    password: '123456', 
+    name: 'Default Supervisor', 
+    email: 'supervisor@example.com', 
+    phone: '555-0100', 
+    role: 'supervisor' 
+  },
+  { 
+    id: 'staff-1', 
+    username: 'john', 
+    password: '123456', 
+    name: 'John Smith', 
+    email: 'john@example.com', 
+    phone: '555-0101', 
+    role: 'staff' 
+  },
+  { 
+    id: 'staff-2', 
+    username: 'jane', 
+    password: '123456', 
+    name: 'Jane Doe', 
+    email: 'jane@example.com', 
+    phone: '555-0102', 
+    role: 'staff' 
+  },
 ];
 
 const initialKeys: Key[] = [
   { id: '1', keyNumber: 'KEY-001', description: 'Main Office Door', dueDate: '2025-02-01', status: 'Available' },
-  { id: '2', keyNumber: 'KEY-002', description: 'Server Room', dueDate: '2025-02-15', status: 'Assigned' },
+  { id: '2', keyNumber: 'KEY-002', description: 'Server Room', dueDate: '2025-02-15', status: 'Assigned', assignedTo: 'staff-1', assignedToName: 'John Smith' },
 ];
 
 const initialTasks: Task[] = [
@@ -70,20 +104,36 @@ const initialTasks: Task[] = [
 
 export function AppProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
-  const [staffAccounts, setStaffAccounts] = useState<StaffAccount[]>(initialStaff);
+  const [userAccounts, setUserAccounts] = useState<UserAccount[]>(initialAccounts);
   const [keys, setKeys] = useState<Key[]>(initialKeys);
   const [tasks, setTasks] = useState<Task[]>(initialTasks);
 
-  const addStaffAccount = (staff: Omit<StaffAccount, 'id'>) => {
-    setStaffAccounts(prev => [...prev, { ...staff, id: generateId() }]);
+  const addUserAccount = (account: Omit<UserAccount, 'id'>) => {
+    setUserAccounts(prev => [...prev, { ...account, id: generateId() }]);
   };
 
-  const updateStaffAccount = (id: string, staff: Omit<StaffAccount, 'id'>) => {
-    setStaffAccounts(prev => prev.map(s => s.id === id ? { ...staff, id } : s));
+  const updateUserAccount = (id: string, account: Omit<UserAccount, 'id'>) => {
+    setUserAccounts(prev => prev.map(a => a.id === id ? { ...account, id } : a));
   };
 
-  const deleteStaffAccount = (id: string) => {
-    setStaffAccounts(prev => prev.filter(s => s.id !== id));
+  const deleteUserAccount = (id: string) => {
+    setUserAccounts(prev => prev.filter(a => a.id !== id));
+    // Unassign keys from deleted user
+    setKeys(prev => prev.map(k => 
+      k.assignedTo === id 
+        ? { ...k, status: 'Available' as const, assignedTo: undefined, assignedToName: undefined }
+        : k
+    ));
+  };
+
+  const validateLogin = (username: string, password: string, role: UserRole): UserAccount | null => {
+    return userAccounts.find(
+      account => account.username === username && account.password === password && account.role === role
+    ) || null;
+  };
+
+  const getStaffAccounts = () => {
+    return userAccounts.filter(a => a.role === 'staff');
   };
 
   const addKey = (key: Omit<Key, 'id'>) => {
@@ -96,6 +146,25 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const deleteKey = (id: string) => {
     setKeys(prev => prev.filter(k => k.id !== id));
+  };
+
+  const assignKey = (keyId: string, userId: string) => {
+    const staffMember = userAccounts.find(a => a.id === userId);
+    if (staffMember) {
+      setKeys(prev => prev.map(k => 
+        k.id === keyId 
+          ? { ...k, status: 'Assigned' as const, assignedTo: userId, assignedToName: staffMember.name }
+          : k
+      ));
+    }
+  };
+
+  const unassignKey = (keyId: string) => {
+    setKeys(prev => prev.map(k => 
+      k.id === keyId 
+        ? { ...k, status: 'Available' as const, assignedTo: undefined, assignedToName: undefined }
+        : k
+    ));
   };
 
   const addTask = (task: Omit<Task, 'id'>) => {
@@ -114,18 +183,22 @@ export function AppProvider({ children }: { children: ReactNode }) {
     <AppContext.Provider value={{
       user,
       setUser,
-      staffAccounts,
-      addStaffAccount,
-      updateStaffAccount,
-      deleteStaffAccount,
+      userAccounts,
+      addUserAccount,
+      updateUserAccount,
+      deleteUserAccount,
+      validateLogin,
       keys,
       addKey,
       updateKey,
       deleteKey,
+      assignKey,
+      unassignKey,
       tasks,
       addTask,
       deleteTask,
       logout,
+      getStaffAccounts,
     }}>
       {children}
     </AppContext.Provider>
