@@ -36,6 +36,16 @@ export interface Task {
   dueDate: string;
 }
 
+export interface KeyHistoryEntry {
+  id: string;
+  keyId: string;
+  keyNumber: string;
+  action: 'checkout' | 'return';
+  staffId: string;
+  staffName: string;
+  timestamp: string;
+}
+
 interface AppContextType {
   user: User | null;
   setUser: (user: User | null) => void;
@@ -55,6 +65,7 @@ interface AppContextType {
   deleteTask: (id: string) => void;
   logout: () => void;
   getStaffAccounts: () => UserAccount[];
+  keyHistory: KeyHistoryEntry[];
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -102,11 +113,16 @@ const initialTasks: Task[] = [
   { id: '2', taskName: 'Key Inventory Audit', assignedTo: 'Jane Doe', dueDate: '2025-01-30' },
 ];
 
+const initialKeyHistory: KeyHistoryEntry[] = [
+  { id: 'h1', keyId: '2', keyNumber: 'KEY-002', action: 'checkout', staffId: 'staff-1', staffName: 'John Smith', timestamp: '2025-01-15T10:30:00' },
+];
+
 export function AppProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [userAccounts, setUserAccounts] = useState<UserAccount[]>(initialAccounts);
   const [keys, setKeys] = useState<Key[]>(initialKeys);
   const [tasks, setTasks] = useState<Task[]>(initialTasks);
+  const [keyHistory, setKeyHistory] = useState<KeyHistoryEntry[]>(initialKeyHistory);
 
   const addUserAccount = (account: Omit<UserAccount, 'id'>) => {
     setUserAccounts(prev => [...prev, { ...account, id: generateId() }]);
@@ -150,16 +166,38 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const assignKey = (keyId: string, userId: string) => {
     const staffMember = userAccounts.find(a => a.id === userId);
-    if (staffMember) {
+    const key = keys.find(k => k.id === keyId);
+    if (staffMember && key) {
       setKeys(prev => prev.map(k => 
         k.id === keyId 
           ? { ...k, status: 'Assigned' as const, assignedTo: userId, assignedToName: staffMember.name }
           : k
       ));
+      setKeyHistory(prev => [...prev, {
+        id: generateId(),
+        keyId,
+        keyNumber: key.keyNumber,
+        action: 'checkout',
+        staffId: userId,
+        staffName: staffMember.name,
+        timestamp: new Date().toISOString(),
+      }]);
     }
   };
 
   const unassignKey = (keyId: string) => {
+    const key = keys.find(k => k.id === keyId);
+    if (key && key.assignedTo && key.assignedToName) {
+      setKeyHistory(prev => [...prev, {
+        id: generateId(),
+        keyId,
+        keyNumber: key.keyNumber,
+        action: 'return',
+        staffId: key.assignedTo!,
+        staffName: key.assignedToName!,
+        timestamp: new Date().toISOString(),
+      }]);
+    }
     setKeys(prev => prev.map(k => 
       k.id === keyId 
         ? { ...k, status: 'Available' as const, assignedTo: undefined, assignedToName: undefined }
@@ -199,6 +237,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       deleteTask,
       logout,
       getStaffAccounts,
+      keyHistory,
     }}>
       {children}
     </AppContext.Provider>
