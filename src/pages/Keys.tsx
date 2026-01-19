@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useApp, Key } from '@/contexts/AppContext';
+import { format } from 'date-fns';
 import { DashboardLayout } from '@/components/layouts/DashboardLayout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -32,11 +33,11 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Plus, Pencil, Trash2, CheckCircle, UserPlus, UserMinus } from 'lucide-react';
+import { Plus, Pencil, Trash2, CheckCircle, UserPlus, UserMinus, History } from 'lucide-react';
 import { toast } from 'sonner';
 
 export default function Keys() {
-  const { user, keys, addKey, updateKey, deleteKey, assignKey, unassignKey, getStaffAccounts } = useApp();
+  const { user, keys, addKey, updateKey, deleteKey, assignKey, unassignKey, getStaffAccounts, keyHistory } = useApp();
   const isSupervisor = user?.role === 'supervisor';
   const staffAccounts = getStaffAccounts();
 
@@ -139,6 +140,16 @@ export default function Keys() {
   const visibleKeys = isSupervisor 
     ? keys 
     : keys.filter(k => k.assignedTo === user?.id);
+
+  // Filter history for staff - they only see their own history
+  const visibleHistory = isSupervisor
+    ? keyHistory
+    : keyHistory.filter(h => h.staffId === user?.id);
+
+  // Sort history by timestamp descending (most recent first)
+  const sortedHistory = [...visibleHistory].sort(
+    (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+  );
 
   return (
     <DashboardLayout>
@@ -246,6 +257,56 @@ export default function Keys() {
                           </div>
                         </TableCell>
                       )}
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Key Checkout/Return History */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <History className="h-5 w-5" />
+              Key Checkout/Return History
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {sortedHistory.length === 0 ? (
+              <div className="py-8 text-center text-muted-foreground">
+                No history records yet.
+              </div>
+            ) : (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Date & Time</TableHead>
+                    <TableHead>Key Number</TableHead>
+                    <TableHead>Action</TableHead>
+                    <TableHead>Staff Member</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {sortedHistory.map((entry) => (
+                    <TableRow key={entry.id}>
+                      <TableCell>
+                        {format(new Date(entry.timestamp), 'MMM dd, yyyy HH:mm')}
+                      </TableCell>
+                      <TableCell className="font-medium">{entry.keyNumber}</TableCell>
+                      <TableCell>
+                        <span
+                          className={`inline-flex rounded-full px-3 py-1 text-xs font-medium ${
+                            entry.action === 'checkout'
+                              ? 'bg-warning/10 text-warning'
+                              : 'bg-success/10 text-success'
+                          }`}
+                        >
+                          {entry.action === 'checkout' ? 'Checked Out' : 'Returned'}
+                        </span>
+                      </TableCell>
+                      <TableCell>{entry.staffName}</TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
