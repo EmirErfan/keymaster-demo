@@ -36,8 +36,9 @@ import { Plus, Trash2, CheckCircle } from 'lucide-react';
 import { toast } from 'sonner';
 
 export default function Tasks() {
-  const { user, tasks, staffAccounts, addTask, deleteTask } = useApp();
+  const { user, tasks, getStaffAccounts, addTask, deleteTask } = useApp();
   const isSupervisor = user?.role === 'supervisor';
+  const staffAccounts = getStaffAccounts();
 
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);

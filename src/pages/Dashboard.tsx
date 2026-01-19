@@ -4,12 +4,13 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Users, Key, ClipboardList, TrendingUp } from 'lucide-react';
 
 export default function Dashboard() {
-  const { user, staffAccounts, keys, tasks } = useApp();
+  const { user, userAccounts, keys, tasks } = useApp();
+  const staffCount = userAccounts.filter(a => a.role === 'staff').length;
 
   const stats = [
     {
       label: 'Total Staff',
-      value: staffAccounts.length,
+      value: staffCount,
       icon: <Users className="h-5 w-5" />,
       color: 'text-primary',
       bgColor: 'bg-primary/10',

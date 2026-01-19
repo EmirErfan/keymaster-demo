@@ -1,19 +1,21 @@
 import { useApp } from '@/contexts/AppContext';
 import { DashboardLayout } from '@/components/layouts/DashboardLayout';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Users, Key, ClipboardList, CheckCircle, AlertCircle } from 'lucide-react';
+import { Users, Key, ClipboardList, CheckCircle, AlertCircle, Shield, User } from 'lucide-react';
 
 export default function Reports() {
-  const { staffAccounts, keys, tasks } = useApp();
-
+  const { userAccounts, keys, tasks } = useApp();
+  
+  const supervisorCount = userAccounts.filter(a => a.role === 'supervisor').length;
+  const staffCount = userAccounts.filter(a => a.role === 'staff').length;
   const availableKeys = keys.filter((k) => k.status === 'Available').length;
   const assignedKeys = keys.filter((k) => k.status === 'Assigned').length;
 
   const stats = [
     {
-      label: 'Total Staff',
-      value: staffAccounts.length,
-      description: 'Registered staff members',
+      label: 'Total Accounts',
+      value: userAccounts.length,
+      description: `${supervisorCount} supervisors, ${staffCount} staff`,
       icon: <Users className="h-6 w-6" />,
       color: 'text-primary',
       bgColor: 'bg-primary/10',
@@ -103,25 +105,33 @@ export default function Reports() {
 
         <Card>
           <CardHeader>
-            <CardTitle>Staff Directory</CardTitle>
-            <CardDescription>Quick overview of registered staff</CardDescription>
+            <CardTitle>User Directory</CardTitle>
+            <CardDescription>Quick overview of registered users</CardDescription>
           </CardHeader>
           <CardContent>
-            {staffAccounts.length === 0 ? (
-              <p className="text-muted-foreground">No staff registered yet.</p>
+            {userAccounts.length === 0 ? (
+              <p className="text-muted-foreground">No users registered yet.</p>
             ) : (
               <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                {staffAccounts.map((staff) => (
+                {userAccounts.map((account) => (
                   <div
-                    key={staff.id}
+                    key={account.id}
                     className="flex items-center gap-3 rounded-lg bg-muted/50 p-3"
                   >
-                    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10 text-primary font-semibold">
-                      {staff.name.charAt(0).toUpperCase()}
+                    <div className={`flex h-10 w-10 items-center justify-center rounded-full font-semibold ${
+                      account.role === 'supervisor' 
+                        ? 'bg-primary/10 text-primary' 
+                        : 'bg-muted text-muted-foreground'
+                    }`}>
+                      {account.role === 'supervisor' ? (
+                        <Shield className="h-5 w-5" />
+                      ) : (
+                        <User className="h-5 w-5" />
+                      )}
                     </div>
                     <div>
-                      <p className="font-medium text-foreground">{staff.name}</p>
-                      <p className="text-sm text-muted-foreground">{staff.role}</p>
+                      <p className="font-medium text-foreground">{account.name}</p>
+                      <p className="text-sm text-muted-foreground capitalize">{account.role}</p>
                     </div>
                   </div>
                 ))}
