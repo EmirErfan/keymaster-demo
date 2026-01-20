@@ -32,13 +32,15 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Plus, Trash2, CheckCircle } from 'lucide-react';
+import { Plus, Trash2, CheckCircle, Key } from 'lucide-react';
 import { toast } from 'sonner';
+import { Badge } from '@/components/ui/badge';
 
 export default function Tasks() {
-  const { user, tasks, getStaffAccounts, addTask, deleteTask } = useApp();
+  const { user, tasks, getStaffAccounts, getAvailableKeys, addTask, deleteTask } = useApp();
   const isSupervisor = user?.role === 'supervisor';
   const staffAccounts = getStaffAccounts();
+  const availableKeys = getAvailableKeys();
 
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
@@ -46,12 +48,13 @@ export default function Tasks() {
 
   const [formData, setFormData] = useState({
     taskName: '',
-    assignedTo: '',
+    assignedToId: '',
+    keyId: '',
     dueDate: '',
   });
 
   const resetForm = () => {
-    setFormData({ taskName: '', assignedTo: '', dueDate: '' });
+    setFormData({ taskName: '', assignedToId: '', keyId: '', dueDate: '' });
   };
 
   const openCreateForm = () => {
@@ -62,21 +65,37 @@ export default function Tasks() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!formData.taskName || !formData.assignedTo || !formData.dueDate) {
+    if (!formData.taskName || !formData.assignedToId || !formData.keyId || !formData.dueDate) {
       toast.error('Please fill in all fields');
       return;
     }
 
-    addTask(formData);
-    toast.success('Task created successfully');
+    const selectedStaff = staffAccounts.find(s => s.id === formData.assignedToId);
+    const selectedKey = availableKeys.find(k => k.id === formData.keyId);
+
+    if (!selectedStaff || !selectedKey) {
+      toast.error('Invalid staff or key selection');
+      return;
+    }
+
+    addTask({
+      taskName: formData.taskName,
+      assignedTo: selectedStaff.name,
+      assignedToId: selectedStaff.id,
+      keyId: selectedKey.id,
+      keyNumber: selectedKey.keyNumber,
+      dueDate: formData.dueDate,
+    });
+    
+    toast.success('Task created and key assigned successfully');
     setIsFormOpen(false);
     resetForm();
   };
 
   const handleDelete = () => {
     if (deletingId) {
-      deleteTask(deletingId);
-      toast.success('Task deleted successfully');
+      deleteTask(deletingId, true);
+      toast.success('Task deleted and key returned');
       setIsDeleteOpen(false);
       setDeletingId(null);
     }
@@ -124,6 +143,7 @@ export default function Tasks() {
                 <TableHeader>
                   <TableRow>
                     <TableHead>Task Name</TableHead>
+                    <TableHead>Assigned Key</TableHead>
                     <TableHead>Assigned To</TableHead>
                     <TableHead>Due Date</TableHead>
                     {isSupervisor && <TableHead className="text-right">Actions</TableHead>}
@@ -133,6 +153,12 @@ export default function Tasks() {
                   {tasks.map((task) => (
                     <TableRow key={task.id}>
                       <TableCell className="font-medium">{task.taskName}</TableCell>
+                      <TableCell>
+                        <Badge variant="outline" className="gap-1">
+                          <Key className="h-3 w-3" />
+                          {task.keyNumber}
+                        </Badge>
+                      </TableCell>
                       <TableCell>{task.assignedTo}</TableCell>
                       <TableCell>{task.dueDate}</TableCell>
                       {isSupervisor && (
@@ -176,17 +202,39 @@ export default function Tasks() {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="assignedTo">Assigned To</Label>
+                <Label htmlFor="keyId">Assign Key</Label>
                 <Select
-                  value={formData.assignedTo}
-                  onValueChange={(value) => setFormData({ ...formData, assignedTo: value })}
+                  value={formData.keyId}
+                  onValueChange={(value) => setFormData({ ...formData, keyId: value })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select key to assign" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {availableKeys.length === 0 ? (
+                      <SelectItem value="none" disabled>No available keys</SelectItem>
+                    ) : (
+                      availableKeys.map((key) => (
+                        <SelectItem key={key.id} value={key.id}>
+                          {key.keyNumber} - {key.description}
+                        </SelectItem>
+                      ))
+                    )}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="assignedTo">Assign To Staff</Label>
+                <Select
+                  value={formData.assignedToId}
+                  onValueChange={(value) => setFormData({ ...formData, assignedToId: value })}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Select staff member" />
                   </SelectTrigger>
                   <SelectContent>
                     {staffAccounts.map((staff) => (
-                      <SelectItem key={staff.id} value={staff.name}>
+                      <SelectItem key={staff.id} value={staff.id}>
                         {staff.name}
                       </SelectItem>
                     ))}
@@ -209,7 +257,7 @@ export default function Tasks() {
               </Button>
               <Button type="submit">
                 <CheckCircle className="mr-2 h-4 w-4" />
-                Create
+                Create Task & Assign Key
               </Button>
             </DialogFooter>
           </form>
