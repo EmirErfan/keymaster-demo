@@ -23,10 +23,10 @@ export interface Key {
   id: string;
   keyNumber: string;
   description: string;
-  dueDate: string;
+  createdDate: string;
   status: 'Available' | 'Assigned';
-  assignedTo?: string; // User ID of assigned staff
-  assignedToName?: string; // Name of assigned staff for display
+  assignedTo?: string;
+  assignedToName?: string;
 }
 
 export interface Task {
@@ -58,7 +58,7 @@ interface AppContextType {
   deleteUserAccount: (id: string) => void;
   validateLogin: (username: string, password: string, role: UserRole) => UserAccount | null;
   keys: Key[];
-  addKey: (key: Omit<Key, 'id'>) => void;
+  addKey: (key: Omit<Key, 'id' | 'createdDate'>) => void;
   updateKey: (id: string, key: Omit<Key, 'id'>) => void;
   deleteKey: (id: string) => void;
   assignKey: (keyId: string, userId: string) => void;
@@ -108,8 +108,8 @@ const initialAccounts: UserAccount[] = [
 ];
 
 const initialKeys: Key[] = [
-  { id: '1', keyNumber: 'KEY-001', description: 'Main Office Door', dueDate: '2025-02-01', status: 'Available' },
-  { id: '2', keyNumber: 'KEY-002', description: 'Server Room', dueDate: '2025-02-15', status: 'Assigned', assignedTo: 'staff-1', assignedToName: 'John Smith' },
+  { id: '1', keyNumber: 'KEY-001', description: 'Main Office Door', createdDate: '2025-01-10', status: 'Available' },
+  { id: '2', keyNumber: 'KEY-002', description: 'Server Room', createdDate: '2025-01-12', status: 'Assigned', assignedTo: 'staff-1', assignedToName: 'John Smith' },
 ];
 
 const initialTasks: Task[] = [
@@ -155,8 +155,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
     return userAccounts.filter(a => a.role === 'staff');
   };
 
-  const addKey = (key: Omit<Key, 'id'>) => {
-    setKeys(prev => [...prev, { ...key, id: generateId() }]);
+  const addKey = (key: Omit<Key, 'id' | 'createdDate'>) => {
+    const today = new Date().toISOString().split('T')[0];
+    setKeys(prev => [...prev, { ...key, id: generateId(), createdDate: today }]);
   };
 
   const updateKey = (id: string, key: Omit<Key, 'id'>) => {

@@ -52,12 +52,11 @@ export default function Keys() {
   const [formData, setFormData] = useState({
     keyNumber: '',
     description: '',
-    dueDate: '',
     status: 'Available' as 'Available' | 'Assigned',
   });
 
   const resetForm = () => {
-    setFormData({ keyNumber: '', description: '', dueDate: '', status: 'Available' });
+    setFormData({ keyNumber: '', description: '', status: 'Available' });
     setEditingKey(null);
   };
 
@@ -71,7 +70,6 @@ export default function Keys() {
     setFormData({
       keyNumber: key.keyNumber,
       description: key.description,
-      dueDate: key.dueDate,
       status: key.status,
     });
     setIsFormOpen(true);
@@ -86,7 +84,7 @@ export default function Keys() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!formData.keyNumber || !formData.description || !formData.dueDate) {
+    if (!formData.keyNumber || !formData.description) {
       toast.error('Please fill in all fields');
       return;
     }
@@ -94,6 +92,7 @@ export default function Keys() {
     if (editingKey) {
       updateKey(editingKey.id, {
         ...formData,
+        createdDate: editingKey.createdDate,
         assignedTo: editingKey.assignedTo,
         assignedToName: editingKey.assignedToName,
       });
@@ -190,7 +189,7 @@ export default function Keys() {
                   <TableRow>
                     <TableHead>Key Number</TableHead>
                     <TableHead>Description</TableHead>
-                    <TableHead>Due Date</TableHead>
+                    <TableHead>Created Date</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead>Assigned To</TableHead>
                     {isSupervisor && <TableHead className="text-right">Actions</TableHead>}
@@ -201,7 +200,7 @@ export default function Keys() {
                     <TableRow key={key.id}>
                       <TableCell className="font-medium">{key.keyNumber}</TableCell>
                       <TableCell>{key.description}</TableCell>
-                      <TableCell>{key.dueDate}</TableCell>
+                      <TableCell>{key.createdDate}</TableCell>
                       <TableCell>
                         <span
                           className={`inline-flex rounded-full px-3 py-1 text-xs font-medium ${
@@ -345,15 +344,6 @@ export default function Keys() {
                   value={formData.description}
                   onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                   placeholder="Enter key description"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="dueDate">Due Date</Label>
-                <Input
-                  id="dueDate"
-                  type="date"
-                  value={formData.dueDate}
-                  onChange={(e) => setFormData({ ...formData, dueDate: e.target.value })}
                 />
               </div>
             </div>
