@@ -30,7 +30,6 @@ const supervisorNav: NavItem[] = [
 
 const staffNav: NavItem[] = [
   { label: 'Dashboard', icon: <LayoutDashboard className="h-5 w-5" />, path: '/dashboard' },
-  { label: 'View Keys', icon: <Key className="h-5 w-5" />, path: '/keys' },
   { label: 'View Tasks', icon: <ClipboardList className="h-5 w-5" />, path: '/tasks' },
   { label: 'My Profile', icon: <User className="h-5 w-5" />, path: '/profile' },
 ];

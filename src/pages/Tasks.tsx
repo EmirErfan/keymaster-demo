@@ -42,6 +42,11 @@ export default function Tasks() {
   const staffAccounts = getStaffAccounts();
   const availableKeys = getAvailableKeys();
 
+  // Filter tasks for staff - only show their assigned tasks
+  const visibleTasks = isSupervisor 
+    ? tasks 
+    : tasks.filter(t => t.assignedToId === user?.id);
+
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -133,10 +138,11 @@ export default function Tasks() {
             <CardTitle>Tasks List</CardTitle>
           </CardHeader>
           <CardContent>
-            {tasks.length === 0 ? (
+            {visibleTasks.length === 0 ? (
               <div className="py-8 text-center text-muted-foreground">
-                No tasks created yet.
-                {isSupervisor && ' Click "Add Task" to create one.'}
+                {isSupervisor 
+                  ? 'No tasks created yet. Click "Add Task" to create one.'
+                  : 'No tasks assigned to you yet.'}
               </div>
             ) : (
               <Table>
@@ -150,7 +156,7 @@ export default function Tasks() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {tasks.map((task) => (
+                  {visibleTasks.map((task) => (
                     <TableRow key={task.id}>
                       <TableCell className="font-medium">{task.taskName}</TableCell>
                       <TableCell>
