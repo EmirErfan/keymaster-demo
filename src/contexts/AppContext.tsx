@@ -33,6 +33,9 @@ export interface Task {
   id: string;
   taskName: string;
   assignedTo: string;
+  assignedToId: string;
+  keyId: string;
+  keyNumber: string;
   dueDate: string;
 }
 
@@ -62,7 +65,8 @@ interface AppContextType {
   unassignKey: (keyId: string) => void;
   tasks: Task[];
   addTask: (task: Omit<Task, 'id'>) => void;
-  deleteTask: (id: string) => void;
+  deleteTask: (id: string, returnKey?: boolean) => void;
+  getAvailableKeys: () => Key[];
   logout: () => void;
   getStaffAccounts: () => UserAccount[];
   keyHistory: KeyHistoryEntry[];
@@ -109,8 +113,7 @@ const initialKeys: Key[] = [
 ];
 
 const initialTasks: Task[] = [
-  { id: '1', taskName: 'Weekly Security Check', assignedTo: 'John Smith', dueDate: '2025-01-25' },
-  { id: '2', taskName: 'Key Inventory Audit', assignedTo: 'Jane Doe', dueDate: '2025-01-30' },
+  { id: '1', taskName: 'Server Room Maintenance', assignedTo: 'John Smith', assignedToId: 'staff-1', keyId: '2', keyNumber: 'KEY-002', dueDate: '2025-01-25' },
 ];
 
 const initialKeyHistory: KeyHistoryEntry[] = [
@@ -206,11 +209,24 @@ export function AppProvider({ children }: { children: ReactNode }) {
   };
 
   const addTask = (task: Omit<Task, 'id'>) => {
-    setTasks(prev => [...prev, { ...task, id: generateId() }]);
+    const newTask = { ...task, id: generateId() };
+    setTasks(prev => [...prev, newTask]);
+    // Auto-assign the key to the staff member
+    if (task.keyId && task.assignedToId) {
+      assignKey(task.keyId, task.assignedToId);
+    }
   };
 
-  const deleteTask = (id: string) => {
+  const deleteTask = (id: string, returnKey: boolean = true) => {
+    const task = tasks.find(t => t.id === id);
+    if (task && returnKey && task.keyId) {
+      unassignKey(task.keyId);
+    }
     setTasks(prev => prev.filter(t => t.id !== id));
+  };
+
+  const getAvailableKeys = () => {
+    return keys.filter(k => k.status === 'Available');
   };
 
   const logout = () => {
@@ -235,6 +251,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       tasks,
       addTask,
       deleteTask,
+      getAvailableKeys,
       logout,
       getStaffAccounts,
       keyHistory,
