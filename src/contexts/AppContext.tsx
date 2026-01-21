@@ -49,6 +49,13 @@ export interface KeyHistoryEntry {
   timestamp: string;
 }
 
+export interface GeneratedReport {
+  id: string;
+  name: string;
+  generatedAt: string;
+  data: string; // base64 encoded PDF
+}
+
 interface AppContextType {
   user: User | null;
   setUser: (user: User | null) => void;
@@ -65,11 +72,14 @@ interface AppContextType {
   unassignKey: (keyId: string) => void;
   tasks: Task[];
   addTask: (task: Omit<Task, 'id'>) => void;
+  updateTask: (id: string, task: Omit<Task, 'id'>) => void;
   deleteTask: (id: string, returnKey?: boolean) => void;
   getAvailableKeys: () => Key[];
   logout: () => void;
   getStaffAccounts: () => UserAccount[];
   keyHistory: KeyHistoryEntry[];
+  generatedReports: GeneratedReport[];
+  addGeneratedReport: (report: Omit<GeneratedReport, 'id'>) => void;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -126,6 +136,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [keys, setKeys] = useState<Key[]>(initialKeys);
   const [tasks, setTasks] = useState<Task[]>(initialTasks);
   const [keyHistory, setKeyHistory] = useState<KeyHistoryEntry[]>(initialKeyHistory);
+  const [generatedReports, setGeneratedReports] = useState<GeneratedReport[]>([]);
 
   const addUserAccount = (account: Omit<UserAccount, 'id'>) => {
     setUserAccounts(prev => [...prev, { ...account, id: generateId() }]);
@@ -218,6 +229,26 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const updateTask = (id: string, task: Omit<Task, 'id'>) => {
+    const existingTask = tasks.find(t => t.id === id);
+    if (existingTask) {
+      // If key changed, unassign old key and assign new one
+      if (existingTask.keyId !== task.keyId) {
+        if (existingTask.keyId) {
+          unassignKey(existingTask.keyId);
+        }
+        if (task.keyId && task.assignedToId) {
+          assignKey(task.keyId, task.assignedToId);
+        }
+      } else if (existingTask.assignedToId !== task.assignedToId && task.keyId) {
+        // If staff changed but key is the same, reassign the key
+        unassignKey(task.keyId);
+        assignKey(task.keyId, task.assignedToId);
+      }
+    }
+    setTasks(prev => prev.map(t => t.id === id ? { ...task, id } : t));
+  };
+
   const deleteTask = (id: string, returnKey: boolean = true) => {
     const task = tasks.find(t => t.id === id);
     if (task && returnKey && task.keyId) {
@@ -228,6 +259,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const getAvailableKeys = () => {
     return keys.filter(k => k.status === 'Available');
+  };
+
+  const addGeneratedReport = (report: Omit<GeneratedReport, 'id'>) => {
+    setGeneratedReports(prev => [...prev, { ...report, id: generateId() }]);
   };
 
   const logout = () => {
@@ -251,11 +286,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
       unassignKey,
       tasks,
       addTask,
+      updateTask,
       deleteTask,
       getAvailableKeys,
       logout,
       getStaffAccounts,
       keyHistory,
+      generatedReports,
+      addGeneratedReport,
     }}>
       {children}
     </AppContext.Provider>

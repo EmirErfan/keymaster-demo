@@ -32,12 +32,12 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Plus, Trash2, CheckCircle, Key } from 'lucide-react';
+import { Plus, Trash2, CheckCircle, Key, Pencil } from 'lucide-react';
 import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
 
 export default function Tasks() {
-  const { user, tasks, getStaffAccounts, getAvailableKeys, addTask, deleteTask } = useApp();
+  const { user, tasks, keys, getStaffAccounts, getAvailableKeys, addTask, updateTask, deleteTask } = useApp();
   const isSupervisor = user?.role === 'supervisor';
   const staffAccounts = getStaffAccounts();
   const availableKeys = getAvailableKeys();
@@ -50,6 +50,7 @@ export default function Tasks() {
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [editingTask, setEditingTask] = useState<typeof tasks[0] | null>(null);
 
   const [formData, setFormData] = useState({
     taskName: '',
@@ -60,12 +61,37 @@ export default function Tasks() {
 
   const resetForm = () => {
     setFormData({ taskName: '', assignedToId: '', keyId: '', dueDate: '' });
+    setEditingTask(null);
   };
 
   const openCreateForm = () => {
     resetForm();
     setIsFormOpen(true);
   };
+
+  const openEditForm = (task: typeof tasks[0]) => {
+    setEditingTask(task);
+    setFormData({
+      taskName: task.taskName,
+      assignedToId: task.assignedToId,
+      keyId: task.keyId,
+      dueDate: task.dueDate,
+    });
+    setIsFormOpen(true);
+  };
+
+  // Get keys that are available OR currently assigned to this task (for editing)
+  const getSelectableKeys = () => {
+    if (editingTask) {
+      const currentKey = keys.find(k => k.id === editingTask.keyId);
+      if (currentKey) {
+        return [...availableKeys, currentKey];
+      }
+    }
+    return availableKeys;
+  };
+
+  const selectableKeys = getSelectableKeys();
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -76,23 +102,35 @@ export default function Tasks() {
     }
 
     const selectedStaff = staffAccounts.find(s => s.id === formData.assignedToId);
-    const selectedKey = availableKeys.find(k => k.id === formData.keyId);
+    const selectedKey = selectableKeys.find(k => k.id === formData.keyId);
 
     if (!selectedStaff || !selectedKey) {
       toast.error('Invalid staff or key selection');
       return;
     }
 
-    addTask({
-      taskName: formData.taskName,
-      assignedTo: selectedStaff.name,
-      assignedToId: selectedStaff.id,
-      keyId: selectedKey.id,
-      keyNumber: selectedKey.keyNumber,
-      dueDate: formData.dueDate,
-    });
+    if (editingTask) {
+      updateTask(editingTask.id, {
+        taskName: formData.taskName,
+        assignedTo: selectedStaff.name,
+        assignedToId: selectedStaff.id,
+        keyId: selectedKey.id,
+        keyNumber: selectedKey.keyNumber,
+        dueDate: formData.dueDate,
+      });
+      toast.success('Task updated successfully');
+    } else {
+      addTask({
+        taskName: formData.taskName,
+        assignedTo: selectedStaff.name,
+        assignedToId: selectedStaff.id,
+        keyId: selectedKey.id,
+        keyNumber: selectedKey.keyNumber,
+        dueDate: formData.dueDate,
+      });
+      toast.success('Task created and key assigned successfully');
+    }
     
-    toast.success('Task created and key assigned successfully');
     setIsFormOpen(false);
     resetForm();
   };
@@ -172,6 +210,13 @@ export default function Tasks() {
                           <Button
                             variant="ghost"
                             size="icon"
+                            onClick={() => openEditForm(task)}
+                          >
+                            <Pencil className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
                             onClick={() => openDeleteDialog(task.id)}
                           >
                             <Trash2 className="h-4 w-4 text-destructive" />
@@ -191,9 +236,9 @@ export default function Tasks() {
       <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Create Task</DialogTitle>
+            <DialogTitle>{editingTask ? 'Edit Task' : 'Create Task'}</DialogTitle>
             <DialogDescription>
-              Fill in the details to create a new task.
+              {editingTask ? 'Update the task details below.' : 'Fill in the details to create a new task.'}
             </DialogDescription>
           </DialogHeader>
           <form onSubmit={handleSubmit}>
@@ -217,10 +262,10 @@ export default function Tasks() {
                     <SelectValue placeholder="Select key to assign" />
                   </SelectTrigger>
                   <SelectContent>
-                    {availableKeys.length === 0 ? (
+                    {selectableKeys.length === 0 ? (
                       <SelectItem value="none" disabled>No available keys</SelectItem>
                     ) : (
-                      availableKeys.map((key) => (
+                      selectableKeys.map((key) => (
                         <SelectItem key={key.id} value={key.id}>
                           {key.keyNumber} - {key.description}
                         </SelectItem>
@@ -263,7 +308,7 @@ export default function Tasks() {
               </Button>
               <Button type="submit">
                 <CheckCircle className="mr-2 h-4 w-4" />
-                Create Task & Assign Key
+                {editingTask ? 'Update Task' : 'Create Task & Assign Key'}
               </Button>
             </DialogFooter>
           </form>
