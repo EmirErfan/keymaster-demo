@@ -32,6 +32,9 @@ export default function Login() {
         id: account.id, 
         username: account.username, 
         name: account.name,
+        email: account.email,
+        phone: account.phone,
+        password: account.password,
         role: account.role 
       });
       navigate('/dashboard');
