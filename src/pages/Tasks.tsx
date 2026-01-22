@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useApp, Task } from '@/contexts/AppContext';
+import { useApp, Task, TodoItem } from '@/contexts/AppContext';
 import { DashboardLayout } from '@/components/layouts/DashboardLayout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -32,37 +32,42 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Plus, Trash2, CheckCircle, Key, Pencil } from 'lucide-react';
+import { Plus, Trash2, CheckCircle, Key, Pencil, Eye, Square, CheckSquare } from 'lucide-react';
 import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
+import { Checkbox } from '@/components/ui/checkbox';
 
 export default function Tasks() {
-  const { user, tasks, keys, getStaffAccounts, getAvailableKeys, addTask, updateTask, deleteTask } = useApp();
+  const { user, tasks, keys, getStaffAccounts, getAvailableKeys, addTask, updateTask, deleteTask, toggleTodoItem, completeTask } = useApp();
   const isSupervisor = user?.role === 'supervisor';
   const staffAccounts = getStaffAccounts();
   const availableKeys = getAvailableKeys();
 
-  // Filter tasks for staff - only show their assigned tasks
+  // Filter tasks for staff - only show their assigned tasks (pending only)
   const visibleTasks = isSupervisor 
     ? tasks 
-    : tasks.filter(t => t.assignedToId === user?.id);
+    : tasks.filter(t => t.assignedToId === user?.id && t.status === 'pending');
 
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [editingTask, setEditingTask] = useState<typeof tasks[0] | null>(null);
+  const [viewingTask, setViewingTask] = useState<Task | null>(null);
 
   const [formData, setFormData] = useState({
     taskName: '',
     assignedToId: '',
     keyId: '',
     dueDate: '',
+    todoItems: '' as string, // Comma-separated list for input
   });
 
   const resetForm = () => {
-    setFormData({ taskName: '', assignedToId: '', keyId: '', dueDate: '' });
+    setFormData({ taskName: '', assignedToId: '', keyId: '', dueDate: '', todoItems: '' });
     setEditingTask(null);
   };
+
+  const generateId = () => Math.random().toString(36).substr(2, 9);
 
   const openCreateForm = () => {
     resetForm();
@@ -76,8 +81,13 @@ export default function Tasks() {
       assignedToId: task.assignedToId,
       keyId: task.keyId,
       dueDate: task.dueDate,
+      todoItems: task.todoItems.map(t => t.text).join(', '),
     });
     setIsFormOpen(true);
+  };
+
+  const openTaskDetail = (task: Task) => {
+    setViewingTask(task);
   };
 
   // Get keys that are available OR currently assigned to this task (for editing)
@@ -115,7 +125,25 @@ export default function Tasks() {
       return;
     }
 
+    // Parse todo items from comma-separated input
+    const todoItems: TodoItem[] = formData.todoItems
+      .split(',')
+      .map(text => text.trim())
+      .filter(text => text.length > 0)
+      .map(text => ({
+        id: generateId(),
+        text,
+        completed: false,
+      }));
+
     if (editingTask) {
+      // Preserve existing todo items' completion status when editing
+      const existingTodoMap = new Map(editingTask.todoItems.map(t => [t.text, t.completed]));
+      const updatedTodoItems = todoItems.map(item => ({
+        ...item,
+        completed: existingTodoMap.get(item.text) || false,
+      }));
+
       updateTask(editingTask.id, {
         taskName: formData.taskName,
         assignedTo: selectedStaff.name,
@@ -123,6 +151,8 @@ export default function Tasks() {
         keyId: selectedKey.id,
         keyNumber: selectedKey.keyNumber,
         dueDate: formData.dueDate,
+        todoItems: updatedTodoItems,
+        status: editingTask.status,
       });
       toast.success('Task updated successfully');
     } else {
@@ -133,12 +163,43 @@ export default function Tasks() {
         keyId: selectedKey.id,
         keyNumber: selectedKey.keyNumber,
         dueDate: formData.dueDate,
+        todoItems,
+        status: 'pending',
       });
       toast.success('Task created and key assigned successfully');
     }
     
     setIsFormOpen(false);
     resetForm();
+  };
+
+  const handleToggleTodo = (todoId: string) => {
+    if (viewingTask) {
+      toggleTodoItem(viewingTask.id, todoId);
+      // Update the viewing task to reflect changes
+      const updatedTask = tasks.find(t => t.id === viewingTask.id);
+      if (updatedTask) {
+        setViewingTask({
+          ...updatedTask,
+          todoItems: updatedTask.todoItems.map(item =>
+            item.id === todoId ? { ...item, completed: !item.completed } : item
+          ),
+        });
+      }
+    }
+  };
+
+  const handleCompleteTask = () => {
+    if (viewingTask) {
+      const allCompleted = viewingTask.todoItems.every(item => item.completed);
+      if (!allCompleted) {
+        toast.error('Please complete all checklist items first');
+        return;
+      }
+      completeTask(viewingTask.id);
+      setViewingTask(null);
+      toast.success('Task completed! Key has been returned.');
+    }
   };
 
   const handleDelete = () => {
@@ -196,12 +257,17 @@ export default function Tasks() {
                     <TableHead>Assigned Key</TableHead>
                     <TableHead>Assigned To</TableHead>
                     <TableHead>Due Date</TableHead>
-                    {isSupervisor && <TableHead className="text-right">Actions</TableHead>}
+                    {isSupervisor && <TableHead>Status</TableHead>}
+                    <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {visibleTasks.map((task) => (
-                    <TableRow key={task.id}>
+                    <TableRow 
+                      key={task.id} 
+                      className={!isSupervisor ? 'cursor-pointer hover:bg-muted/50' : ''}
+                      onClick={() => !isSupervisor && openTaskDetail(task)}
+                    >
                       <TableCell className="font-medium">{task.taskName}</TableCell>
                       <TableCell>
                         <Badge variant="outline" className="gap-1">
@@ -211,6 +277,13 @@ export default function Tasks() {
                       </TableCell>
                       <TableCell>{task.assignedTo}</TableCell>
                       <TableCell>{task.dueDate}</TableCell>
+                      {isSupervisor && (
+                        <TableCell>
+                          <Badge variant={task.status === 'completed' ? 'default' : 'secondary'}>
+                            {task.status === 'completed' ? 'Completed' : 'Pending'}
+                          </Badge>
+                        </TableCell>
+                      )}
                       {isSupervisor && (
                         <TableCell className="text-right">
                           <Button
@@ -226,6 +299,13 @@ export default function Tasks() {
                             onClick={() => openDeleteDialog(task.id)}
                           >
                             <Trash2 className="h-4 w-4 text-destructive" />
+                          </Button>
+                        </TableCell>
+                      )}
+                      {!isSupervisor && (
+                        <TableCell className="text-right">
+                          <Button variant="ghost" size="icon" onClick={() => openTaskDetail(task)}>
+                            <Eye className="h-4 w-4" />
                           </Button>
                         </TableCell>
                       )}
@@ -307,6 +387,18 @@ export default function Tasks() {
                   onChange={(e) => setFormData({ ...formData, dueDate: e.target.value })}
                 />
               </div>
+              <div className="space-y-2">
+                <Label htmlFor="todoItems">Checklist Items (comma-separated)</Label>
+                <Input
+                  id="todoItems"
+                  value={formData.todoItems}
+                  onChange={(e) => setFormData({ ...formData, todoItems: e.target.value })}
+                  placeholder="e.g., Check temperature, Clean filters, Verify backups"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Enter items separated by commas. Staff will see these as a checklist.
+                </p>
+              </div>
             </div>
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setIsFormOpen(false)}>
@@ -341,6 +433,74 @@ export default function Tasks() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Staff Task Detail Dialog */}
+      <Dialog open={!!viewingTask} onOpenChange={(open) => !open && setViewingTask(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>{viewingTask?.taskName}</DialogTitle>
+            <DialogDescription>
+              Complete all checklist items before marking as done
+            </DialogDescription>
+          </DialogHeader>
+          {viewingTask && (
+            <div className="space-y-4 py-4">
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <Key className="h-4 w-4" />
+                <span>Key: {viewingTask.keyNumber}</span>
+              </div>
+              <div className="text-sm text-muted-foreground">
+                Due: {viewingTask.dueDate}
+              </div>
+              
+              <div className="space-y-3">
+                <Label>Checklist</Label>
+                {viewingTask.todoItems.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">No checklist items for this task.</p>
+                ) : (
+                  <div className="space-y-2">
+                    {viewingTask.todoItems.map((item) => (
+                      <div
+                        key={item.id}
+                        className="flex items-center gap-3 p-3 rounded-lg border bg-card hover:bg-muted/50 cursor-pointer"
+                        onClick={() => handleToggleTodo(item.id)}
+                      >
+                        {item.completed ? (
+                          <CheckSquare className="h-5 w-5 text-primary" />
+                        ) : (
+                          <Square className="h-5 w-5 text-muted-foreground" />
+                        )}
+                        <span className={item.completed ? 'line-through text-muted-foreground' : ''}>
+                          {item.text}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+              
+              <div className="pt-2">
+                <p className="text-sm text-muted-foreground mb-2">
+                  {viewingTask.todoItems.filter(t => t.completed).length} of {viewingTask.todoItems.length} completed
+                </p>
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setViewingTask(null)}>
+              Close
+            </Button>
+            <Button
+              type="button"
+              onClick={handleCompleteTask}
+              disabled={viewingTask && viewingTask.todoItems.length > 0 && !viewingTask.todoItems.every(t => t.completed)}
+            >
+              <CheckCircle className="mr-2 h-4 w-4" />
+              Complete Task
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </DashboardLayout>
   );
 }

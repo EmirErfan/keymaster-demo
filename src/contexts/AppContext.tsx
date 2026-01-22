@@ -32,6 +32,12 @@ export interface Key {
   assignedToName?: string;
 }
 
+export interface TodoItem {
+  id: string;
+  text: string;
+  completed: boolean;
+}
+
 export interface Task {
   id: string;
   taskName: string;
@@ -40,6 +46,8 @@ export interface Task {
   keyId: string;
   keyNumber: string;
   dueDate: string;
+  todoItems: TodoItem[];
+  status: 'pending' | 'completed';
 }
 
 export interface KeyHistoryEntry {
@@ -77,6 +85,8 @@ interface AppContextType {
   addTask: (task: Omit<Task, 'id'>) => void;
   updateTask: (id: string, task: Omit<Task, 'id'>) => void;
   deleteTask: (id: string, returnKey?: boolean) => void;
+  toggleTodoItem: (taskId: string, todoId: string) => void;
+  completeTask: (taskId: string) => void;
   getAvailableKeys: () => Key[];
   logout: () => void;
   getStaffAccounts: () => UserAccount[];
@@ -126,7 +136,21 @@ const initialKeys: Key[] = [
 ];
 
 const initialTasks: Task[] = [
-  { id: '1', taskName: 'Server Room Maintenance', assignedTo: 'John Smith', assignedToId: 'staff-1', keyId: '2', keyNumber: 'KEY-002', dueDate: '2025-01-25' },
+  { 
+    id: '1', 
+    taskName: 'Server Room Maintenance', 
+    assignedTo: 'John Smith', 
+    assignedToId: 'staff-1', 
+    keyId: '2', 
+    keyNumber: 'KEY-002', 
+    dueDate: '2025-01-25',
+    todoItems: [
+      { id: 't1', text: 'Check server temperature', completed: false },
+      { id: 't2', text: 'Clean dust filters', completed: false },
+      { id: 't3', text: 'Verify backup systems', completed: false },
+    ],
+    status: 'pending',
+  },
 ];
 
 const initialKeyHistory: KeyHistoryEntry[] = [
@@ -273,6 +297,29 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setTasks(prev => prev.filter(t => t.id !== id));
   };
 
+  const toggleTodoItem = (taskId: string, todoId: string) => {
+    setTasks(prev => prev.map(task => 
+      task.id === taskId
+        ? {
+            ...task,
+            todoItems: task.todoItems.map(item =>
+              item.id === todoId ? { ...item, completed: !item.completed } : item
+            ),
+          }
+        : task
+    ));
+  };
+
+  const completeTask = (taskId: string) => {
+    const task = tasks.find(t => t.id === taskId);
+    if (task && task.keyId) {
+      unassignKey(task.keyId);
+    }
+    setTasks(prev => prev.map(t => 
+      t.id === taskId ? { ...t, status: 'completed' as const } : t
+    ));
+  };
+
   const getAvailableKeys = () => {
     return keys.filter(k => k.status === 'Available');
   };
@@ -304,6 +351,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
       addTask,
       updateTask,
       deleteTask,
+      toggleTodoItem,
+      completeTask,
       getAvailableKeys,
       logout,
       getStaffAccounts,
