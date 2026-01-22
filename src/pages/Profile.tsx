@@ -38,11 +38,55 @@ export default function Profile() {
     }
   };
 
+  const validateEmail = (email: string): boolean => {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return emailRegex.test(email);
+  };
+
+  const validatePhone = (phone: string): boolean => {
+    // Malaysian phone format: +60 followed by 9-10 digits
+    const phoneRegex = /^\+60\d{9,10}$/;
+    return phoneRegex.test(phone.replace(/\s/g, ''));
+  };
+
+  const formatPhoneNumber = (value: string): string => {
+    // Remove all non-digit characters except +
+    let cleaned = value.replace(/[^\d+]/g, '');
+    
+    // Ensure it starts with +60
+    if (!cleaned.startsWith('+')) {
+      if (cleaned.startsWith('60')) {
+        cleaned = '+' + cleaned;
+      } else if (cleaned.startsWith('0')) {
+        cleaned = '+6' + cleaned;
+      } else {
+        cleaned = '+60' + cleaned;
+      }
+    }
+    
+    return cleaned;
+  };
+
+  const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const formatted = formatPhoneNumber(e.target.value);
+    setFormData({ ...formData, phone: formatted });
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
     if (!formData.name || !formData.email || !formData.phone) {
       toast.error('Please fill in all required fields');
+      return;
+    }
+
+    if (!validateEmail(formData.email)) {
+      toast.error('Please enter a valid email address (e.g., example@email.com)');
+      return;
+    }
+
+    if (!validatePhone(formData.phone)) {
+      toast.error('Please enter a valid Malaysian phone number (+60XXXXXXXXX)');
       return;
     }
 
@@ -227,12 +271,12 @@ export default function Profile() {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="phone">Phone</Label>
+                <Label htmlFor="phone">Phone (+60)</Label>
                 <Input
                   id="phone"
                   value={formData.phone}
-                  onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                  placeholder="Enter your phone number"
+                  onChange={handlePhoneChange}
+                  placeholder="+60123456789"
                 />
               </div>
               <div className="space-y-2">
