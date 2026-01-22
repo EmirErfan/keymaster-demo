@@ -85,7 +85,13 @@ export default function Tasks() {
     if (editingTask) {
       const currentKey = keys.find(k => k.id === editingTask.keyId);
       if (currentKey) {
-        return [...availableKeys, currentKey];
+        // Check if the current key is already in availableKeys to avoid duplicates
+        const isAlreadyAvailable = availableKeys.some(k => k.id === currentKey.id);
+        if (isAlreadyAvailable) {
+          return availableKeys;
+        }
+        // Put current key first, then available keys
+        return [currentKey, ...availableKeys];
       }
     }
     return availableKeys;
