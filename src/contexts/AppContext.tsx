@@ -147,6 +147,19 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const updateUserAccount = (id: string, account: Omit<UserAccount, 'id'>) => {
     setUserAccounts(prev => prev.map(a => a.id === id ? { ...account, id } : a));
+    
+    // If the updated account is the current user, update the user session as well
+    if (user && user.id === id) {
+      setUser({
+        id,
+        username: account.username,
+        name: account.name,
+        email: account.email,
+        phone: account.phone,
+        password: account.password,
+        role: account.role,
+      });
+    }
   };
 
   const deleteUserAccount = (id: string) => {
